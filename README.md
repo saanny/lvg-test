@@ -53,7 +53,7 @@ Inserts two admins and three users, all with password `password123` (emails like
 
 ## API
 
-Send the token from login as `Authorization: Bearer <accessToken>`.
+Responses follow the JSON:API format: a single resource is `{ "data": { "type", "id", "attributes" } }`, a collection is `{ "data": [...], "meta" }`, and errors are `{ "errors": [...] }`. Send the token from login as `Authorization: Bearer <accessToken>`.
 
 | Method | Path | Access |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ Send the token from login as `Authorization: Bearer <accessToken>`.
 | GET | /users | admin, paginated, `?page=&limit=&role=` |
 | GET | /users/:id | self or admin |
 | PATCH | /users/:id | self or admin, role change is admin-only |
-| DELETE | /users/:id | admin, cannot delete yourself |
+| DELETE | /users/:id | admin, cannot delete yourself, soft delete |
 
 ### Register
 
@@ -71,17 +71,19 @@ POST /users
 { "name": "Alice", "email": "alice@leo.com", "password": "password123" }
 
 201
-{ "id": "uuid", "name": "Alice", "email": "alice@leo.com", "role": "USER", "createdAt": "...", "updatedAt": "..." }
+{ "data": { "type": "users", "id": "uuid", "attributes": { "name": "Alice", "email": "alice@leo.com", "role": "USER", "createdAt": "...", "updatedAt": "..." } } }
 ```
 
 ### Login
+
+The user is the primary resource, the token is in `meta`.
 
 ```
 POST /auth/login
 { "email": "alice@leo.com", "password": "password123" }
 
 200
-{ "accessToken": "eyJ...", "user": { "id": "uuid", "name": "Alice", "email": "alice@leo.com", "role": "USER", "createdAt": "...", "updatedAt": "..." } }
+{ "data": { "type": "users", "id": "uuid", "attributes": { "name": "Alice", "email": "alice@leo.com", "role": "USER" } }, "meta": { "accessToken": "eyJ..." } }
 ```
 
 ### List users
@@ -91,7 +93,7 @@ GET /users?page=1&limit=10&role=ADMIN
 
 200
 {
-  "items": [ { "id": "uuid", "name": "Bob", "email": "bob@leo.com", "role": "ADMIN", "createdAt": "...", "updatedAt": "..." } ],
+  "data": [ { "type": "users", "id": "uuid", "attributes": { "name": "Bob", "email": "bob@leo.com", "role": "ADMIN", "createdAt": "...", "updatedAt": "..." } } ],
   "meta": { "currentPage": 1, "totalItems": 1, "itemsPerPage": 10, "totalPages": 1, "nextPage": null, "prevPage": null, "itemsCount": 1 }
 }
 ```
@@ -100,10 +102,19 @@ GET /users?page=1&limit=10&role=ADMIN
 
 ```
 PATCH /users/:id
-{ "name": "New name" }          // any subset of name, email, password, role (role is admin-only)
+{ "name": "New name" }
 ```
 
-The password is never returned in any response.
+Any subset of name, email, password, role (role is admin-only). Returns the updated resource.
+
+### Errors
+
+```
+400 / 401 / 403 / 404 / 409
+{ "errors": [ { "status": "404", "title": "Not Found", "detail": "User <id> not found" } ] }
+```
+
+The password is never returned in any response. Delete is a soft delete: the row is kept with a `deletedAt` timestamp, the user can no longer log in, and the email stays reserved.
 
 ## Migrations
 
@@ -117,19 +128,23 @@ pnpm migration:revert
 
 ```
 src/
-  main.ts                 bootstrap, global validation pipe, serializer, Swagger
-  app.module.ts           wires TypeORM and the feature modules
+  main.ts                 bootstrap and Swagger
+  app.setup.ts            shared app config (validation pipe, JSON:API interceptor + filter)
+  app.module.ts           ConfigModule.forRoot, TypeORM, feature modules
   config/
-    database/             database env config (registerAs + typed service + module)
+    env.validation.ts     Joi schema for env vars
+    database/             database env config (registerAs + typed service)
     auth/                 jwt env config
     database.config.ts    TypeORM options for the app
     data-source.ts        TypeORM CLI data source (migrations, seeder)
-  common/dto/             pagination query and paginated response types
+  common/
+    dto/                  pagination query and paginated response types
+    json-api/             interceptor, exception filter, @JsonApiResource decorator
   users/
     users.controller.ts   routes
     users.service.ts       business rules (ownership, role checks, hashing)
     users.repository.ts    data access, the only place that touches TypeORM
-    user.entity.ts
+    user.entity.ts         includes a soft-delete deletedAt column
     dto/
   auth/
     auth.controller.ts     login

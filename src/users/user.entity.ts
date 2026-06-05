@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { UserRole } from './user-role.enum';
@@ -19,7 +20,6 @@ export class User {
   @Column({ unique: true })
   email!: string;
 
-
   @Column({ select: false })
   @Exclude()
   password!: string;
@@ -32,4 +32,8 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @DeleteDateColumn()
+  @Exclude()
+  deletedAt?: Date;
 }

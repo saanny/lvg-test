@@ -1,38 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  INestApplication,
-  ValidationPipe,
-  ClassSerializerInterceptor,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { INestApplication } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 import { User } from '../src/users/user.entity';
-
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
   let users: Repository<User>;
   const server = () => app.getHttpServer();
 
-  const ALICE = { name: 'Alice', email: 'alice@leo.com', password: 'password123' };
+  const ALICE = {
+    name: 'Alice',
+    email: 'alice@leo.com',
+    password: 'password123',
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app = configureApp(moduleFixture.createNestApplication());
     await app.init();
 
     users = app.get<Repository<User>>(getRepositoryToken(User));
@@ -47,12 +38,15 @@ describe('Auth (e2e)', () => {
   });
 
   const register = async (): Promise<{ id: string; token: string }> => {
-    const created = await request(server()).post('/users').send(ALICE).expect(201);
+    const created = await request(server())
+      .post('/users')
+      .send(ALICE)
+      .expect(201);
     const res = await request(server())
       .post('/auth/login')
       .send({ email: ALICE.email, password: ALICE.password })
       .expect(200);
-    return { id: created.body.id, token: res.body.accessToken };
+    return { id: created.body.data.id, token: res.body.meta.accessToken };
   };
 
   describe('POST /auth/login', () => {
@@ -63,15 +57,16 @@ describe('Auth (e2e)', () => {
         .send({ email: ALICE.email, password: ALICE.password })
         .expect(200);
 
-      expect(res.body.accessToken).toEqual(expect.any(String));
-      expect(res.body.accessToken.split('.')).toHaveLength(3);
-      expect(res.body.user).toMatchObject({
+      expect(res.body.meta.accessToken).toEqual(expect.any(String));
+      expect(res.body.meta.accessToken.split('.')).toHaveLength(3);
+      expect(res.body.data.type).toBe('users');
+      expect(res.body.data.attributes).toMatchObject({
         email: ALICE.email,
         name: ALICE.name,
         role: 'USER',
       });
-      expect(res.body.user.id).toBeDefined();
-      expect(res.body.user.password).toBeUndefined();
+      expect(res.body.data.id).toBeDefined();
+      expect(res.body.data.attributes.password).toBeUndefined();
     });
 
     it('rejects unknown email with 401', async () => {
@@ -92,7 +87,7 @@ describe('Auth (e2e)', () => {
     it('rejects a malformed body with 400', async () => {
       await request(server())
         .post('/auth/login')
-        .send({ email: 'not-an-email' }) 
+        .send({ email: 'not-an-email' })
         .expect(400);
     });
   });

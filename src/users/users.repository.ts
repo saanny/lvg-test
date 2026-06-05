@@ -15,7 +15,7 @@ export class UsersRepository {
   }
 
   findByEmail(email: string): Promise<User | null> {
-    return this.repo.findOne({ where: { email } });
+    return this.repo.findOne({ where: { email }, withDeleted: true });
   }
 
   findByEmailWithPassword(email: string): Promise<User | null> {
@@ -43,6 +43,6 @@ export class UsersRepository {
   }
 
   remove(user: User): Promise<User> {
-    return this.repo.remove(user);
+    return this.repo.softRemove(user);
   }
 }

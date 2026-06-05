@@ -40,7 +40,11 @@ describe('UsersService', () => {
   let service: UsersService;
   let repo: MockRepo;
 
-  const admin = makeUser({ id: 'admin-id', email: 'admin@leo.com', role: UserRole.ADMIN });
+  const admin = makeUser({
+    id: 'admin-id',
+    email: 'admin@leo.com',
+    role: UserRole.ADMIN,
+  });
   const userA = makeUser({ id: 'user-a', email: 'a@leo.com' });
 
   beforeEach(async () => {
@@ -60,9 +64,9 @@ describe('UsersService', () => {
       repo.findByEmail.mockResolvedValue(null);
       mockedBcrypt.hash.mockResolvedValue('hashed-pw' as never);
       repo.create.mockImplementation((x) => x as User);
-      repo.save.mockImplementation(async (x) => x as User);
+      repo.save.mockImplementation(async (x) => x);
 
-      await service.create(dto as any);
+      await service.create(dto);
 
       expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10);
       expect(repo.create).toHaveBeenCalledWith(
@@ -77,7 +81,9 @@ describe('UsersService', () => {
 
     it('rejects a duplicate email with ConflictException', async () => {
       repo.findByEmail.mockResolvedValue(userA);
-      await expect(service.create(dto as any)).rejects.toThrow(ConflictException);
+      await expect(service.create(dto as any)).rejects.toThrow(
+        ConflictException,
+      );
       expect(repo.save).not.toHaveBeenCalled();
     });
   });
@@ -85,26 +91,30 @@ describe('UsersService', () => {
   describe('findOneAuthorized', () => {
     it('lets an admin view any user', async () => {
       repo.findById.mockResolvedValue(userA);
-      await expect(service.findOneAuthorized('user-a', admin)).resolves.toBe(userA);
+      await expect(service.findOneAuthorized('user-a', admin)).resolves.toBe(
+        userA,
+      );
     });
 
     it('lets a user view themselves', async () => {
       repo.findById.mockResolvedValue(userA);
-      await expect(service.findOneAuthorized('user-a', userA)).resolves.toBe(userA);
+      await expect(service.findOneAuthorized('user-a', userA)).resolves.toBe(
+        userA,
+      );
     });
 
     it('forbids a user from viewing someone else', async () => {
-      await expect(service.findOneAuthorized('other-id', userA)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.findOneAuthorized('other-id', userA),
+      ).rejects.toThrow(ForbiddenException);
       expect(repo.findById).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the target does not exist', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.findOneAuthorized('admin-id', admin)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findOneAuthorized('admin-id', admin),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -164,9 +174,13 @@ describe('UsersService', () => {
 
     it('lets an admin change a role', async () => {
       repo.findById.mockResolvedValue(makeUser());
-      repo.save.mockImplementation(async (x) => x as User);
+      repo.save.mockImplementation(async (x) => x);
 
-      const result = await service.update('user-a', { role: UserRole.ADMIN }, admin);
+      const result = await service.update(
+        'user-a',
+        { role: UserRole.ADMIN },
+        admin,
+      );
 
       expect(result.role).toBe(UserRole.ADMIN);
       expect(repo.save).toHaveBeenCalled();
@@ -184,7 +198,7 @@ describe('UsersService', () => {
     it('hashes a new password before saving', async () => {
       repo.findById.mockResolvedValue(makeUser());
       mockedBcrypt.hash.mockResolvedValue('new-hash' as never);
-      repo.save.mockImplementation(async (x) => x as User);
+      repo.save.mockImplementation(async (x) => x);
 
       await service.update('user-a', { password: 'brandnew1' }, userA);
 
@@ -209,7 +223,9 @@ describe('UsersService', () => {
 
     it('throws NotFoundException for a missing user', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.remove('ghost', admin)).rejects.toThrow(NotFoundException);
+      await expect(service.remove('ghost', admin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

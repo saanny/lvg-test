@@ -10,7 +10,10 @@ export class DatabaseConfigService {
   }
 
   get port(): number {
-    return parseInt(this.configService.getOrThrow<string>('Database.DB_PORT'), 10);
+    return parseInt(
+      this.configService.getOrThrow<string>('Database.DB_PORT'),
+      10,
+    );
   }
 
   get username(): string {

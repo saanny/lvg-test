@@ -1,10 +1,12 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { JsonApiResource } from '../common/json-api/json-api-resource.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('auth')
 @ApiBearerAuth()
+@JsonApiResource('users')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
