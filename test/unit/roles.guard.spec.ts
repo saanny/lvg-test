@@ -1,7 +1,7 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
-import { UserRole } from '../../src/users/user-role.enum';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 const contextFor = (role: UserRole): ExecutionContext =>
   ({

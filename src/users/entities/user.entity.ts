@@ -7,7 +7,7 @@ import {
   DeleteDateColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import { UserRole } from './user-role.enum';
+import { UserRole } from '../enums/user-role.enum';
 
 @Entity('users')
 export class User {

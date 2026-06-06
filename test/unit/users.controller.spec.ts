@@ -3,8 +3,8 @@ import { UsersController } from '../../src/users/users.controller';
 import { UsersService } from '../../src/users/users.service';
 import { CreateUserRequest } from '../../src/users/dto/create-user-request.dto';
 import { UpdateUserRequest } from '../../src/users/dto/update-user-request.dto';
-import { User } from '../../src/users/user.entity';
-import { UserRole } from '../../src/users/user-role.enum';
+import { User } from '../../src/users/entities/user.entity';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 const actor = { id: 'actor-id', role: UserRole.ADMIN } as User;
 

@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 import { AppDataSource } from '../../config/data-source';
-import { User } from '../../users/user.entity';
-import { UserRole } from '../../users/user-role.enum';
+import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 interface SeedUser {
   name: string;

@@ -1,11 +1,11 @@
 import { Repository } from 'typeorm';
-import { UsersRepository } from '../../src/users/users.repository';
-import { User } from '../../src/users/user.entity';
+import { TypeOrmUsersRepository } from '../../src/users/repositories/typeorm-users.repository';
+import { User } from '../../src/users/entities/user.entity';
 
 const user = { id: 'u1', email: 'a@leo.com' } as User;
 
-describe('UsersRepository', () => {
-  let repo: UsersRepository;
+describe('TypeOrmUsersRepository', () => {
+  let repo: TypeOrmUsersRepository;
   let typeorm: {
     findOne: jest.Mock;
     findAndCount: jest.Mock;
@@ -24,7 +24,7 @@ describe('UsersRepository', () => {
       softRemove: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
-    repo = new UsersRepository(typeorm as unknown as Repository<User>);
+    repo = new TypeOrmUsersRepository(typeorm as unknown as Repository<User>);
   });
 
   it('findById queries by id', async () => {

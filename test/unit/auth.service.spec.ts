@@ -3,9 +3,9 @@ import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../../src/auth/auth.service';
-import { UsersRepository } from '../../src/users/users.repository';
-import { User } from '../../src/users/user.entity';
-import { UserRole } from '../../src/users/user-role.enum';
+import { UsersRepository } from '../../src/users/repositories/users.repository';
+import { User } from '../../src/users/entities/user.entity';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 jest.mock('bcrypt');
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;

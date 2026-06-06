@@ -7,8 +7,8 @@ import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
-import { User } from '../../src/users/user.entity';
-import { UserRole } from '../../src/users/user-role.enum';
+import { User } from '../../src/users/entities/user.entity';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 const MISSING_ID = '00000000-0000-0000-0000-000000000000';
 

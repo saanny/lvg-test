@@ -1,9 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { JwtStrategy } from '../../src/auth/jwt.strategy';
+import { JwtStrategy } from '../../src/auth/strategies/jwt.strategy';
 import { AuthConfigService } from '../../src/config/auth/auth-config.service';
-import { UsersRepository } from '../../src/users/users.repository';
-import { User } from '../../src/users/user.entity';
-import { UserRole } from '../../src/users/user-role.enum';
+import { UsersRepository } from '../../src/users/repositories/users.repository';
+import { User } from '../../src/users/entities/user.entity';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 const user = { id: 'u1', role: UserRole.USER } as User;
 

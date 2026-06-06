@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../../src/users/users.service';
-import { UsersRepository } from '../../src/users/users.repository';
-import { User } from '../../src/users/user.entity';
-import { UserRole } from '../../src/users/user-role.enum';
+import { UsersRepository } from '../../src/users/repositories/users.repository';
+import { User } from '../../src/users/entities/user.entity';
+import { UserRole } from '../../src/users/enums/user-role.enum';
 
 jest.mock('bcrypt');
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
@@ -25,16 +25,15 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
 });
 
 type MockRepo = jest.Mocked<UsersRepository>;
-const makeRepo = (): MockRepo =>
-  ({
-    findById: jest.fn(),
-    findByEmail: jest.fn(),
-    findByEmailWithPassword: jest.fn(),
-    findAndCount: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-    remove: jest.fn(),
-  }) as unknown as MockRepo;
+const makeRepo = (): MockRepo => ({
+  findById: jest.fn(),
+  findByEmail: jest.fn(),
+  findByEmailWithPassword: jest.fn(),
+  findAndCount: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  remove: jest.fn(),
+});
 
 describe('UsersService', () => {
   let service: UsersService;

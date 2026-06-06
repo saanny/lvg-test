@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User } from '../users/user.entity';
-import { UsersRepository } from '../users/users.repository';
+import { User } from '../users/entities/user.entity';
+import { UsersRepository } from '../users/repositories/users.repository';
 
 export interface JwtPayload {
   sub: string;

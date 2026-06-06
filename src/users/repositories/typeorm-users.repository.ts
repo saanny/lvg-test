@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
-import { User } from './user.entity';
+import { User } from '../entities/user.entity';
+import { UsersRepository } from './users.repository';
 
 @Injectable()
-export class UsersRepository {
+export class TypeOrmUsersRepository extends UsersRepository {
   constructor(
     @InjectRepository(User)
     private readonly repo: Repository<User>,
-  ) {}
+  ) {
+    super();
+  }
 
   findById(id: string): Promise<User | null> {
     return this.repo.findOne({ where: { id } });

@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Paginated } from '../common/dto/paginated.dto';
-import { User } from './user.entity';
-import { UserRole } from './user-role.enum';
-import { UsersRepository } from './users.repository';
+import { User } from './entities/user.entity';
+import { UserRole } from './enums/user-role.enum';
+import { UsersRepository } from './repositories/users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';

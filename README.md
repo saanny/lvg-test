@@ -5,16 +5,18 @@ REST API for managing users with JWT authentication and role-based access. Anyon
 
 ```bash
 cp .env.example .env
-docker compose up --build
+pnpm docker:up
 ```
 
 API runs on http://localhost:3000, Swagger on http://localhost:3000/docs. Migrations run automatically on startup.
 
-For development with hot reload:
-
-```bash
-docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up
-```
+| Script | What it does |
+| --- | --- |
+| `pnpm docker:up` | build + start the prod stack (detached) |
+| `pnpm docker:dev` | start with hot reload (mounts `./src`, `nest start --watch`) |
+| `pnpm docker:logs` | follow the app logs |
+| `pnpm docker:down` | stop the stack |
+| `pnpm docker:down:volumes` | stop and wipe the database volume |
 
 ## Run locally
 
@@ -146,14 +148,15 @@ src/
   users/
     users.controller.ts   routes
     users.service.ts       business rules (ownership, role checks, hashing)
-    users.repository.ts    data access, the only place that touches TypeORM
-    user.entity.ts         includes a soft-delete deletedAt column
+    entities/              user.entity.ts (soft-delete deletedAt column)
+    enums/                 user-role.enum.ts
+    repositories/          users.repository.ts (abstract contract) + typeorm-users.repository.ts (impl)
     dto/
   auth/
     auth.controller.ts     login
     auth.service.ts        credential check, token signing
-    jwt.strategy.ts        validates tokens, loads the user
-    guards/, decorators/
+    strategies/            jwt.strategy.ts (validates tokens, loads the user)
+    guards/, decorators/, dto/
   database/seeds/seed.ts  seeder
   migrations/
 test/
