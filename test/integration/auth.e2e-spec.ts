@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
-import { User } from '../src/users/user.entity';
+import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
+import { User } from '../../src/users/user.entity';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
@@ -18,12 +19,20 @@ describe('Auth (e2e)', () => {
     password: 'password123',
   };
 
+  const createAlice = () =>
+    request(server())
+      .post('/users')
+      .send({ data: { type: 'users', attributes: ALICE } })
+      .expect(201);
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    app = configureApp(moduleFixture.createNestApplication());
+    app = configureApp(
+      moduleFixture.createNestApplication<NestExpressApplication>(),
+    );
     await app.init();
 
     users = app.get<Repository<User>>(getRepositoryToken(User));
@@ -38,10 +47,7 @@ describe('Auth (e2e)', () => {
   });
 
   const register = async (): Promise<{ id: string; token: string }> => {
-    const created = await request(server())
-      .post('/users')
-      .send(ALICE)
-      .expect(201);
+    const created = await createAlice();
     const res = await request(server())
       .post('/auth/login')
       .send({ email: ALICE.email, password: ALICE.password })
@@ -51,7 +57,7 @@ describe('Auth (e2e)', () => {
 
   describe('POST /auth/login', () => {
     it('issues a JWT for valid credentials', async () => {
-      await request(server()).post('/users').send(ALICE).expect(201);
+      await createAlice();
       const res = await request(server())
         .post('/auth/login')
         .send({ email: ALICE.email, password: ALICE.password })
@@ -77,18 +83,18 @@ describe('Auth (e2e)', () => {
     });
 
     it('rejects a wrong password with 401', async () => {
-      await request(server()).post('/users').send(ALICE).expect(201);
+      await createAlice();
       await request(server())
         .post('/auth/login')
         .send({ email: ALICE.email, password: 'wrong-password' })
         .expect(401);
     });
 
-    it('rejects a malformed body with 400', async () => {
+    it('rejects a malformed login body with 422', async () => {
       await request(server())
         .post('/auth/login')
         .send({ email: 'not-an-email' })
-        .expect(400);
+        .expect(422);
     });
   });
 

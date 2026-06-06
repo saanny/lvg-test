@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from './users.service';
-import { UsersRepository } from './users.repository';
-import { User } from './user.entity';
-import { UserRole } from './user-role.enum';
+import { UsersService } from '../../src/users/users.service';
+import { UsersRepository } from '../../src/users/users.repository';
+import { User } from '../../src/users/user.entity';
+import { UserRole } from '../../src/users/user-role.enum';
 
 jest.mock('bcrypt');
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
@@ -16,7 +16,7 @@ const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: 'user-a',
   name: 'A',
-  email: 'a@leo.com',
+  email: 'a@leovegas.com',
   password: 'hashed',
   role: UserRole.USER,
   createdAt: new Date(),
@@ -42,10 +42,10 @@ describe('UsersService', () => {
 
   const admin = makeUser({
     id: 'admin-id',
-    email: 'admin@leo.com',
+    email: 'admin@leovegas.com',
     role: UserRole.ADMIN,
   });
-  const userA = makeUser({ id: 'user-a', email: 'a@leo.com' });
+  const userA = makeUser({ id: 'user-a', email: 'a@leovegas.com' });
 
   beforeEach(async () => {
     repo = makeRepo();
@@ -58,7 +58,11 @@ describe('UsersService', () => {
   });
 
   describe('create', () => {
-    const dto = { name: 'New', email: 'new@leo.com', password: 'password123' };
+    const dto = {
+      name: 'New',
+      email: 'new@leovegas.com',
+      password: 'password123',
+    };
 
     it('hashes the password, forces the USER role, and saves', async () => {
       repo.findByEmail.mockResolvedValue(null);
@@ -71,7 +75,7 @@ describe('UsersService', () => {
       expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10);
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: 'new@leo.com',
+          email: 'new@leovegas.com',
           password: 'hashed-pw',
           role: UserRole.USER,
         }),
@@ -123,7 +127,7 @@ describe('UsersService', () => {
       const items = [makeUser({ id: '1' }), makeUser({ id: '2' })];
       repo.findAndCount.mockResolvedValue([items, 5]);
 
-      const result = await service.findAll({ page: 2, limit: 2 });
+      const result = await service.findAll({ page: { number: 2, size: 2 } });
 
       expect(repo.findAndCount).toHaveBeenCalledWith(2, 2, {});
       expect(result.items).toBe(items);
@@ -141,7 +145,7 @@ describe('UsersService', () => {
     it('returns null for nextPage/prevPage on a single page', async () => {
       repo.findAndCount.mockResolvedValue([[makeUser()], 1]);
 
-      const result = await service.findAll({ page: 1, limit: 10 });
+      const result = await service.findAll({ page: { number: 1, size: 10 } });
 
       expect(result.meta.nextPage).toBeNull();
       expect(result.meta.prevPage).toBeNull();
@@ -151,7 +155,10 @@ describe('UsersService', () => {
     it('filters by role when provided', async () => {
       repo.findAndCount.mockResolvedValue([[admin], 1]);
 
-      await service.findAll({ page: 1, limit: 10, role: UserRole.ADMIN });
+      await service.findAll({
+        page: { number: 1, size: 10 },
+        role: UserRole.ADMIN,
+      });
 
       expect(repo.findAndCount).toHaveBeenCalledWith(0, 10, {
         role: UserRole.ADMIN,
@@ -191,7 +198,7 @@ describe('UsersService', () => {
       repo.findByEmail.mockResolvedValue(makeUser({ id: 'someone-else' }));
 
       await expect(
-        service.update('user-a', { email: 'taken@leo.com' }, admin),
+        service.update('user-a', { email: 'taken@leovegas.com' }, admin),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -203,6 +210,23 @@ describe('UsersService', () => {
       await service.update('user-a', { password: 'brandnew1' }, userA);
 
       expect(bcrypt.hash).toHaveBeenCalledWith('brandnew1', 10);
+    });
+
+    it('skips the conflict check when the email is unchanged', async () => {
+      repo.findById.mockResolvedValue(makeUser({ email: 'a@leovegas.com' }));
+      repo.save.mockImplementation(async (x) => x);
+
+      await service.update('user-a', { email: 'a@leovegas.com' }, userA);
+
+      expect(repo.findByEmail).not.toHaveBeenCalled();
+      expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when updating a missing user', async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(
+        service.update('ghost', { name: 'x' }, admin),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

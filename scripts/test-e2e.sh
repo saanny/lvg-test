@@ -16,4 +16,4 @@ $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true
 $COMPOSE up -d --wait                                        
 
 echo "🧪 Running integration tests..."
-NODE_ENV=test pnpm jest --config ./test/jest-e2e.json "$@"
+NODE_ENV=test pnpm jest --config ./test/jest-integration.json "$@"

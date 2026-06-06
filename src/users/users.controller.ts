@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -12,11 +13,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JsonApiResource } from '../common/json-api/json-api-resource.decorator';
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserRequest } from './dto/create-user-request.dto';
+import { UpdateUserRequest } from './dto/update-user-request.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
@@ -33,13 +34,24 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(@Body() body: CreateUserRequest) {
+    this.assertType(body.data.type);
+    return this.usersService.create(body.data.attributes);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @ApiQuery({
+    name: 'page[number]',
+    required: false,
+    schema: { type: 'integer', minimum: 1, default: 1 },
+  })
+  @ApiQuery({
+    name: 'page[size]',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+  })
   findAll(@Query() query: FindUsersQueryDto) {
     return this.usersService.findAll(query);
   }
@@ -54,10 +66,14 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateUserDto,
+    @Body() body: UpdateUserRequest,
     @CurrentUser() actor: User,
   ) {
-    return this.usersService.update(id, dto, actor);
+    this.assertType(body.data.type);
+    if (body.data.id !== undefined && body.data.id !== id) {
+      throw new ConflictException('Resource id in the body must match the URL');
+    }
+    return this.usersService.update(id, body.data.attributes, actor);
   }
 
   @Delete(':id')
@@ -66,5 +82,11 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: User) {
     return this.usersService.remove(id, actor);
+  }
+
+  private assertType(type: string): void {
+    if (type !== 'users') {
+      throw new ConflictException("Resource type must be 'users'");
+    }
   }
 }

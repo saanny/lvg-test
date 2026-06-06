@@ -6,12 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
-
-interface JsonApiError {
-  status: string;
-  title: string;
-  detail?: string;
-}
+import { JsonApiError } from './json-api-validation';
 
 @Catch()
 export class JsonApiExceptionFilter implements ExceptionFilter {
@@ -31,6 +26,14 @@ export class JsonApiExceptionFilter implements ExceptionFilter {
   }
 
   private toErrors(status: number, payload: unknown): JsonApiError[] {
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      Array.isArray((payload as { errors?: unknown }).errors)
+    ) {
+      return (payload as { errors: JsonApiError[] }).errors;
+    }
+
     const statusStr = String(status);
     if (typeof payload === 'string') {
       return [{ status: statusStr, title: payload }];

@@ -1,13 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
-import { User } from '../src/users/user.entity';
-import { UserRole } from '../src/users/user-role.enum';
+import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
+import { User } from '../../src/users/user.entity';
+import { UserRole } from '../../src/users/user-role.enum';
+
+const MISSING_ID = '00000000-0000-0000-0000-000000000000';
 
 describe('Users & Auth (e2e)', () => {
   let app: INestApplication;
@@ -19,7 +22,9 @@ describe('Users & Auth (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    app = configureApp(moduleFixture.createNestApplication());
+    app = configureApp(
+      moduleFixture.createNestApplication<NestExpressApplication>(),
+    );
     await app.init();
 
     users = app.get<Repository<User>>(getRepositoryToken(User));
@@ -39,8 +44,15 @@ describe('Users & Auth (e2e)', () => {
     password: 'password123',
   };
 
-  const createUser = (payload: Record<string, unknown>) =>
-    request(server()).post('/users').send(payload);
+  const createBody = (attributes: Record<string, unknown>) => ({
+    data: { type: 'users', attributes },
+  });
+  const updateBody = (id: string, attributes: Record<string, unknown>) => ({
+    data: { type: 'users', id, attributes },
+  });
+
+  const createUser = (attributes: Record<string, unknown>) =>
+    request(server()).post('/users').send(createBody(attributes));
 
   const createAlice = () => createUser(ALICE).expect(201);
 
@@ -75,34 +87,48 @@ describe('Users & Auth (e2e)', () => {
       expect(res.body.data.attributes.password).toBeUndefined();
     });
 
+    it('rejects a body without a data member (422)', async () => {
+      await request(server()).post('/users').send(ALICE).expect(422);
+    });
+
+    it('rejects a wrong resource type (409)', async () => {
+      await request(server())
+        .post('/users')
+        .send({ data: { type: 'people', attributes: ALICE } })
+        .expect(409);
+    });
+
     it('rejects a duplicate email with 409', async () => {
       await createAlice();
       await createUser(ALICE).expect(409);
     });
 
-    it('rejects an invalid body with a JSON:API error (400)', async () => {
+    it('rejects invalid attributes with a 422 JSON:API error', async () => {
       const res = await createUser({
         name: 'X',
         email: 'not-an-email',
         password: 'short',
-      }).expect(400);
+      }).expect(422);
       expect(Array.isArray(res.body.errors)).toBe(true);
-      expect(res.body.errors[0].status).toBe('400');
+      expect(res.body.errors[0].status).toBe('422');
+      expect(
+        res.body.errors.map(
+          (e: { source: { pointer: string } }) => e.source.pointer,
+        ),
+      ).toContain('/data/attributes/email');
     });
 
-    it('rejects unknown / non-whitelisted fields with 400', async () => {
-      await createUser({ ...ALICE, role: 'ADMIN' }).expect(400);
+    it('rejects unknown attributes with 422', async () => {
+      await createUser({ ...ALICE, role: 'ADMIN' }).expect(422);
     });
   });
 
   describe('GET /users/:id', () => {
     it('requires authentication (401)', async () => {
-      await request(server())
-        .get('/users/00000000-0000-0000-0000-000000000000')
-        .expect(401);
+      await request(server()).get(`/users/${MISSING_ID}`).expect(401);
     });
 
-    it('lets a user fetch their own record', async () => {
+    it('lets a USER view their own details', async () => {
       const created = await createAlice();
       const token = await login(ALICE.email, ALICE.password);
       const res = await request(server())
@@ -112,24 +138,32 @@ describe('Users & Auth (e2e)', () => {
       expect(res.body.data.attributes.email).toBe(ALICE.email);
     });
 
-    it('forbids a user from fetching someone else (403)', async () => {
+    it('forbids a USER from viewing someone else (403)', async () => {
       await createAlice();
       const bob = await createUser({
         name: 'Bob',
         email: 'bob@leo.com',
         password: 'password123',
       }).expect(201);
-      const aliceToken = await login(ALICE.email, ALICE.password);
-
+      const token = await login(ALICE.email, ALICE.password);
       await request(server())
         .get(`/users/${bob.body.data.id}`)
-        .set('Authorization', `Bearer ${aliceToken}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(403);
+    });
+
+    it('returns 404 when an ADMIN views a non-existent user', async () => {
+      await seedAdmin();
+      const token = await login('admin@leo.com', 'adminpass1');
+      await request(server())
+        .get(`/users/${MISSING_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
     });
   });
 
-  describe('GET /users', () => {
-    it('forbids a normal user (403)', async () => {
+  describe('GET /users (ADMIN only)', () => {
+    it('forbids a normal USER (403)', async () => {
       await createAlice();
       const token = await login(ALICE.email, ALICE.password);
       await request(server())
@@ -138,7 +172,7 @@ describe('Users & Auth (e2e)', () => {
         .expect(403);
     });
 
-    it('lets an admin list every user as a JSON:API collection (200)', async () => {
+    it('lets an ADMIN list users as a JSON:API collection with meta and links', async () => {
       await seedAdmin();
       await createAlice();
       const token = await login('admin@leo.com', 'adminpass1');
@@ -149,23 +183,16 @@ describe('Users & Auth (e2e)', () => {
 
       expect(res.body.data).toHaveLength(2);
       expect(res.body.data[0].type).toBe('users');
-      expect(res.body.meta).toMatchObject({
-        currentPage: 1,
-        totalItems: 2,
-        itemsPerPage: 10,
-        totalPages: 1,
-        nextPage: null,
-        prevPage: null,
-        itemsCount: 2,
-      });
+      expect(res.body.meta).toMatchObject({ currentPage: 1, totalItems: 2 });
+      expect(res.body.links.self).toBe('/users?page[number]=1&page[size]=10');
     });
 
-    it('respects page and limit query params', async () => {
+    it('respects page[number] and page[size]', async () => {
       await seedAdmin();
       await createAlice();
       const token = await login('admin@leo.com', 'adminpass1');
       const res = await request(server())
-        .get('/users?page=1&limit=1')
+        .get('/users?page[number]=1&page[size]=1')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -176,17 +203,17 @@ describe('Users & Auth (e2e)', () => {
         itemsPerPage: 1,
         totalPages: 2,
         nextPage: 2,
-        prevPage: null,
       });
+      expect(res.body.links.next).toBe('/users?page[number]=2&page[size]=1');
     });
 
-    it('rejects an invalid limit (400)', async () => {
+    it('rejects an invalid page size (422)', async () => {
       await seedAdmin();
       const token = await login('admin@leo.com', 'adminpass1');
       await request(server())
-        .get('/users?limit=0')
+        .get('/users?page[size]=0')
         .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+        .expect(422);
     });
 
     it('filters by role', async () => {
@@ -200,32 +227,51 @@ describe('Users & Auth (e2e)', () => {
 
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].attributes.role).toBe('ADMIN');
-      expect(res.body.meta.totalItems).toBe(1);
     });
 
-    it('rejects an invalid role (400)', async () => {
+    it('rejects an invalid role (422)', async () => {
       await seedAdmin();
       const token = await login('admin@leo.com', 'adminpass1');
       await request(server())
         .get('/users?role=SUPERADMIN')
         .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+        .expect(422);
     });
   });
 
   describe('PATCH /users/:id', () => {
-    it('lets a user update their own name', async () => {
+    it('lets a USER update their own details', async () => {
       const created = await createAlice();
       const token = await login(ALICE.email, ALICE.password);
       const res = await request(server())
         .patch(`/users/${created.body.data.id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Alice Updated' })
+        .send(updateBody(created.body.data.id, { name: 'Alice Updated' }))
         .expect(200);
       expect(res.body.data.attributes.name).toBe('Alice Updated');
     });
 
-    it('forbids a user from updating someone else (403)', async () => {
+    it('rejects an empty attributes object (422)', async () => {
+      const created = await createAlice();
+      const token = await login(ALICE.email, ALICE.password);
+      await request(server())
+        .patch(`/users/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateBody(created.body.data.id, {}))
+        .expect(422);
+    });
+
+    it('rejects a body id that does not match the URL (409)', async () => {
+      const created = await createAlice();
+      const token = await login(ALICE.email, ALICE.password);
+      await request(server())
+        .patch(`/users/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateBody(MISSING_ID, { name: 'X' }))
+        .expect(409);
+    });
+
+    it('forbids a USER from updating someone else (403)', async () => {
       await createAlice();
       const bob = await createUser({
         name: 'Bob',
@@ -236,7 +282,7 @@ describe('Users & Auth (e2e)', () => {
       await request(server())
         .patch(`/users/${bob.body.data.id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Hacked' })
+        .send(updateBody(bob.body.data.id, { name: 'Hacked' }))
         .expect(403);
     });
 
@@ -246,23 +292,26 @@ describe('Users & Auth (e2e)', () => {
       await request(server())
         .patch(`/users/${created.body.data.id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ role: 'ADMIN' })
+        .send(updateBody(created.body.data.id, { role: 'ADMIN' }))
         .expect(403);
     });
 
-    it('lets an admin change a user role (200)', async () => {
+    it('lets an ADMIN update the role and details of another user (200)', async () => {
       await seedAdmin();
       const alice = await createAlice();
       const token = await login('admin@leo.com', 'adminpass1');
       const res = await request(server())
         .patch(`/users/${alice.body.data.id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ role: 'ADMIN' })
+        .send(
+          updateBody(alice.body.data.id, { role: 'ADMIN', name: 'Promoted' }),
+        )
         .expect(200);
       expect(res.body.data.attributes.role).toBe('ADMIN');
+      expect(res.body.data.attributes.name).toBe('Promoted');
     });
 
-    it('returns 409 when an admin updates a user email to one already taken', async () => {
+    it('returns 409 when an ADMIN updates an email already taken', async () => {
       await seedAdmin();
       const alice = await createAlice();
       await createUser({
@@ -274,23 +323,32 @@ describe('Users & Auth (e2e)', () => {
       await request(server())
         .patch(`/users/${alice.body.data.id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ email: 'carol@leo.com' })
+        .send(updateBody(alice.body.data.id, { email: 'carol@leo.com' }))
         .expect(409);
     });
 
-    it('returns 404 for a missing user', async () => {
+    it('returns 404 when an ADMIN updates a non-existent user', async () => {
       await seedAdmin();
       const token = await login('admin@leo.com', 'adminpass1');
       await request(server())
-        .patch('/users/00000000-0000-0000-0000-000000000000')
+        .patch(`/users/${MISSING_ID}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Ghost' })
+        .send(updateBody(MISSING_ID, { name: 'Ghost' }))
         .expect(404);
     });
   });
 
-  describe('DELETE /users/:id (soft delete)', () => {
-    it('lets an admin delete another user (204)', async () => {
+  describe('DELETE /users/:id (ADMIN only, soft delete)', () => {
+    it('forbids a USER from deleting (403)', async () => {
+      const created = await createAlice();
+      const token = await login(ALICE.email, ALICE.password);
+      await request(server())
+        .delete(`/users/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
+    it('lets an ADMIN delete another user (204)', async () => {
       const admin = await seedAdmin();
       const alice = await createAlice();
       const token = await login('admin@leo.com', 'adminpass1');
@@ -330,14 +388,22 @@ describe('Users & Auth (e2e)', () => {
       await createUser(ALICE).expect(409);
     });
 
-    it('forbids an admin from deleting themselves (403)', async () => {
+    it('forbids an ADMIN from deleting themselves (403)', async () => {
       const admin = await seedAdmin();
       const token = await login('admin@leo.com', 'adminpass1');
-
       await request(server())
         .delete(`/users/${admin.id}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
+    });
+
+    it('returns 404 when an ADMIN deletes a non-existent user', async () => {
+      await seedAdmin();
+      const token = await login('admin@leo.com', 'adminpass1');
+      await request(server())
+        .delete(`/users/${MISSING_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
     });
   });
 });

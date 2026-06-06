@@ -43,24 +43,25 @@ export class UsersService {
   }
 
   async findAll(query: FindUsersQueryDto): Promise<Paginated<User>> {
-    const { page, limit, role } = query;
-    const offset = (page - 1) * limit;
-    const where = role ? { role } : {};
+    const number = query.page?.number ?? 1;
+    const size = query.page?.size ?? 10;
+    const offset = (number - 1) * size;
+    const where = query.role ? { role: query.role } : {};
     const [items, totalItems] = await this.users.findAndCount(
       offset,
-      limit,
+      size,
       where,
     );
-    const totalPages = Math.ceil(totalItems / limit);
-    const nextPage = page + 1 > totalPages ? null : page + 1;
-    const prevPage = page - 1 < 1 ? null : page - 1;
+    const totalPages = Math.ceil(totalItems / size);
+    const nextPage = number + 1 > totalPages ? null : number + 1;
+    const prevPage = number - 1 < 1 ? null : number - 1;
 
     return {
       items,
       meta: {
-        currentPage: page,
+        currentPage: number,
         totalItems,
-        itemsPerPage: limit,
+        itemsPerPage: size,
         totalPages,
         nextPage,
         prevPage,

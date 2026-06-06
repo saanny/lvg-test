@@ -53,13 +53,13 @@ Inserts two admins and three users, all with password `password123` (emails like
 
 ## API
 
-Responses follow the JSON:API format: a single resource is `{ "data": { "type", "id", "attributes" } }`, a collection is `{ "data": [...], "meta" }`, and errors are `{ "errors": [...] }`. Send the token from login as `Authorization: Bearer <accessToken>`.
+Follows the JSON:API specification. Request bodies for create/update are wrapped in `{ "data": { "type": "users", "id"?, "attributes": {...} } }`; responses are `{ "data": { "type", "id", "attributes" } }` (or `{ "data": [...], "meta", "links" }` for a collection); errors are `{ "errors": [...] }`. Send the token from login as `Authorization: Bearer <accessToken>`.
 
 | Method | Path | Access |
 | --- | --- | --- |
 | POST | /auth/login | public |
 | POST | /users | public, always creates a USER |
-| GET | /users | admin, paginated, `?page=&limit=&role=` |
+| GET | /users | admin, paginated, `?page[number]=&page[size]=&role=` |
 | GET | /users/:id | self or admin |
 | PATCH | /users/:id | self or admin, role change is admin-only |
 | DELETE | /users/:id | admin, cannot delete yourself, soft delete |
@@ -68,7 +68,7 @@ Responses follow the JSON:API format: a single resource is `{ "data": { "type", 
 
 ```
 POST /users
-{ "name": "Alice", "email": "alice@leo.com", "password": "password123" }
+{ "data": { "type": "users", "attributes": { "name": "Alice", "email": "alice@leo.com", "password": "password123" } } }
 
 201
 { "data": { "type": "users", "id": "uuid", "attributes": { "name": "Alice", "email": "alice@leo.com", "role": "USER", "createdAt": "...", "updatedAt": "..." } } }
@@ -76,7 +76,7 @@ POST /users
 
 ### Login
 
-The user is the primary resource, the token is in `meta`.
+Login is the one non-resource action: the request is flat, the user is returned as the primary resource, the token is in `meta`.
 
 ```
 POST /auth/login
@@ -89,12 +89,13 @@ POST /auth/login
 ### List users
 
 ```
-GET /users?page=1&limit=10&role=ADMIN
+GET /users?page[number]=1&page[size]=10&role=ADMIN
 
 200
 {
   "data": [ { "type": "users", "id": "uuid", "attributes": { "name": "Bob", "email": "bob@leo.com", "role": "ADMIN", "createdAt": "...", "updatedAt": "..." } } ],
-  "meta": { "currentPage": 1, "totalItems": 1, "itemsPerPage": 10, "totalPages": 1, "nextPage": null, "prevPage": null, "itemsCount": 1 }
+  "meta": { "currentPage": 1, "totalItems": 1, "itemsPerPage": 10, "totalPages": 1, "nextPage": null, "prevPage": null, "itemsCount": 1 },
+  "links": { "self": "/users?page[number]=1&page[size]=10", "first": "...", "last": "...", "prev": null, "next": null }
 }
 ```
 
@@ -102,16 +103,18 @@ GET /users?page=1&limit=10&role=ADMIN
 
 ```
 PATCH /users/:id
-{ "name": "New name" }
+{ "data": { "type": "users", "id": "<same as URL>", "attributes": { "name": "New name" } } }
 ```
 
-Any subset of name, email, password, role (role is admin-only). Returns the updated resource.
+`attributes` is any non-empty subset of name, email, password, role (role is admin-only). The body `type` must be `users` and `id` must match the URL, else `409`. Returns the updated resource.
 
 ### Errors
 
+Invalid attributes return `422` with a `source.pointer`; other failures use the matching status:
+
 ```
-400 / 401 / 403 / 404 / 409
-{ "errors": [ { "status": "404", "title": "Not Found", "detail": "User <id> not found" } ] }
+422  { "errors": [ { "status": "422", "source": { "pointer": "/data/attributes/email" }, "title": "Invalid Attribute", "detail": "email must be an email" } ] }
+404  { "errors": [ { "status": "404", "title": "Not Found", "detail": "User <id> not found" } ] }
 ```
 
 The password is never returned in any response. Delete is a soft delete: the row is kept with a `deletedAt` timestamp, the user can no longer log in, and the email stays reserved.
@@ -153,7 +156,10 @@ src/
     guards/, decorators/
   database/seeds/seed.ts  seeder
   migrations/
-test/                     e2e specs
+test/
+  unit/                   unit specs (services, guard, strategy, repository, json-api)
+  integration/            e2e specs (full HTTP + database)
+  jest-integration.json   jest config for the integration run
 ```
 
 ## Environment
