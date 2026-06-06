@@ -216,6 +216,28 @@ describe('Users & Auth (e2e)', () => {
         .expect(422);
     });
 
+    it('paginates without overlap across pages (stable order)', async () => {
+      await seedAdmin();
+      await createAlice();
+      await createUser({
+        name: 'Bob',
+        email: 'bob@leo.com',
+        password: 'password123',
+      }).expect(201);
+      const token = await login('admin@leo.com', 'adminpass1');
+
+      const idOnPage = async (n: number): Promise<string> => {
+        const res = await request(server())
+          .get(`/users?page[number]=${n}&page[size]=1`)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+        return res.body.data[0].id as string;
+      };
+
+      const ids = [await idOnPage(1), await idOnPage(2), await idOnPage(3)];
+      expect(new Set(ids).size).toBe(3);
+    });
+
     it('filters by role', async () => {
       await seedAdmin();
       await createAlice();

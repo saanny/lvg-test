@@ -34,7 +34,12 @@ export class TypeOrmUsersRepository extends UsersRepository {
     take: number,
     where: FindOptionsWhere<User> = {},
   ): Promise<[User[], number]> {
-    return this.repo.findAndCount({ where, skip, take });
+    return this.repo.findAndCount({
+      where,
+      skip,
+      take,
+      order: { createdAt: 'DESC', id: 'ASC' },
+    });
   }
 
   create(data: Partial<User>): User {

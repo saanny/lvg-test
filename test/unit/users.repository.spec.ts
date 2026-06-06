@@ -57,13 +57,14 @@ describe('TypeOrmUsersRepository', () => {
     });
   });
 
-  it('findAndCount passes skip, take and where', async () => {
+  it('findAndCount passes skip, take, where and a stable order', async () => {
     typeorm.findAndCount.mockResolvedValue([[user], 1]);
     await repo.findAndCount(10, 5, { email: 'a@leo.com' });
     expect(typeorm.findAndCount).toHaveBeenCalledWith({
       where: { email: 'a@leo.com' },
       skip: 10,
       take: 5,
+      order: { createdAt: 'DESC', id: 'ASC' },
     });
   });
 

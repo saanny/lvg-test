@@ -21,6 +21,7 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    delete (user as Partial<User>).password;
     return user;
   }
 
